@@ -39,8 +39,8 @@ import (
 )
 
 const (
-	WEBSITE       = "https://blueimp.github.io/jQuery-File-Upload/"
-	HOST          = "blueimp.github.io"
+	WEBSITE       = "http://192.168.99.100:8000/"
+	HOST          = "192.168.99.100:8080"
 	MEMCACHE      = "http://172.17.0.4:1978/"
 	MIN_FILE_SIZE = 1 // bytes
 	// Max file size is memcache limit (1MB) minus key size minus overhead:
@@ -128,8 +128,8 @@ func (fi *FileInfo) CreateUrls(r *http.Request) {
 }
 
 func (fi *FileInfo) SetKey(checksum uint32) {
-	fi.Key = escape(string(fi.Type)) + "/" +
-		escape(fmt.Sprint(checksum)) + "/" +
+	fi.Key = escape(string(fi.Type)) + "-" +
+		escape(fmt.Sprint(checksum)) + "-" +
 		escape(string(fi.Name))
 }
 
@@ -166,6 +166,7 @@ func (fi *FileInfo) createThumb(buffer *bytes.Buffer) {
 			err = memcache.Set(c, item)
 		*/
 		err = memcacheSet(thumbnailKey, buffer.Bytes())
+		fmt.Println("Key=",thumbnailKey)
 		check(err)
 		fi.ThumbnailKey = thumbnailKey
 	}
@@ -262,18 +263,22 @@ func validateRedirect(r *http.Request, redirect string) bool {
 }
 
 func get(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("In get req")
 	if r.URL.Path == "/" {
 		http.Redirect(w, r, WEBSITE, http.StatusFound)
 		return
 	}
 	// Use RequestURI instead of r.URL.Path, as we need the encoded form:
 	key := extractKey(r)
+	fmt.Println("Key get=",key)
 	parts := strings.Split(key, "/")
-	if len(parts) == 3 {
+	fmt.Println("Parts get=",parts)
+	if len(parts) == 1 {
 		/*
 			context := appengine.NewContext(r)
 			item, err := memcache.Get(context, key)
 		*/
+		fmt.Println("Get key=",key)
 		item, err := memcacheGet(key)
 		if err == nil {
 			w.Header().Add("X-Content-Type-Options", "nosniff")
@@ -319,7 +324,7 @@ func post(w http.ResponseWriter, r *http.Request) {
 func delete(w http.ResponseWriter, r *http.Request) {
 	key := extractKey(r)
 	parts := strings.Split(key, "/")
-	if len(parts) == 3 {
+	if len(parts) == 1 {
 		result := make(map[string]bool, 1)
 		/*
 			context := appengine.NewContext(r)
@@ -330,7 +335,8 @@ func delete(w http.ResponseWriter, r *http.Request) {
 			result[key] = true
 			contentType, _ := url.QueryUnescape(parts[0])
 			if imageTypes.MatchString(contentType) {
-				thumbnailKey := key + thumbSuffix + filepath.Ext(parts[2])
+				//thumbnailKey := key + thumbSuffix + filepath.Ext(parts[2])
+				thumbnailKey := key + thumbSuffix + filepath.Ext(parts[0])
 				//err := memcache.Delete(context, thumbnailKey)
 				err := memcacheDelete(thumbnailKey)
 				if err == nil {
@@ -402,7 +408,7 @@ func memcacheSet(key string, value []byte) error {
 		return err
 	}
 	defer resp.Body.Close()
-	//fmt.Println(resp.Status)
+	fmt.Println(resp.Status)
 	return nil
 }
 
